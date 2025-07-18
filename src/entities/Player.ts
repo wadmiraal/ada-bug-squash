@@ -1,5 +1,39 @@
 import Phaser from "phaser";
 
+export interface PlayerState {
+  velocity: { x: number; y: number };
+  speed: number;
+  jumpVelocity: number;
+  onGround: boolean;
+  facing: "left" | "right";
+}
+
+export interface CursorsState {
+  left: { isDown: boolean };
+  right: { isDown: boolean };
+  up: { isDown: boolean };
+}
+
+export function updatePlayerMovement(
+  state: PlayerState,
+  cursors: CursorsState
+) {
+  // Horizontal movement
+  if (cursors.left.isDown) {
+    state.velocity.x = -state.speed;
+    state.facing = "left";
+  } else if (cursors.right.isDown) {
+    state.velocity.x = state.speed;
+    state.facing = "right";
+  } else {
+    state.velocity.x = 0;
+  }
+  // Jump
+  if (cursors.up.isDown && state.onGround) {
+    state.velocity.y = state.jumpVelocity;
+  }
+}
+
 export class Player extends Phaser.Physics.Arcade.Sprite {
   cursors: Phaser.Types.Input.Keyboard.CursorKeys;
   speed: number;
@@ -27,23 +61,28 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   update() {
     if (!this.body) return;
-    // Horizontal movement
-    if (this.cursors.left && this.cursors.left.isDown) {
-      this.setVelocityX(-this.speed);
-      this.setFlipX(false);
-    } else if (this.cursors.right && this.cursors.right.isDown) {
-      this.setVelocityX(this.speed);
-      this.setFlipX(true);
-    } else {
-      this.setVelocityX(0);
-    }
-    // Jump
+    const state: PlayerState = {
+      velocity: {
+        x: (this.body as Phaser.Physics.Arcade.Body).velocity.x,
+        y: (this.body as Phaser.Physics.Arcade.Body).velocity.y,
+      },
+      speed: this.speed,
+      jumpVelocity: this.jumpVelocity,
+      onGround: (this.body as Phaser.Physics.Arcade.Body).blocked.down,
+      facing: this.flipX ? "right" : "left",
+    };
+    const cursors: CursorsState = {
+      left: { isDown: !!this.cursors.left && this.cursors.left.isDown },
+      right: { isDown: !!this.cursors.right && this.cursors.right.isDown },
+      up: { isDown: !!this.cursors.up && this.cursors.up.isDown },
+    };
+    updatePlayerMovement(state, cursors);
+    this.setVelocityX(state.velocity.x);
     if (
-      this.cursors.up &&
-      this.cursors.up.isDown &&
-      (this.body as Phaser.Physics.Arcade.Body).blocked.down
+      state.velocity.y !== (this.body as Phaser.Physics.Arcade.Body).velocity.y
     ) {
-      this.setVelocityY(this.jumpVelocity);
+      this.setVelocityY(state.velocity.y);
     }
+    this.setFlipX(state.facing === "right");
   }
 }
