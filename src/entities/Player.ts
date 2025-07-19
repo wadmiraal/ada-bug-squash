@@ -34,10 +34,44 @@ export function updatePlayerMovement(
   }
 }
 
+export class PlayerHealthManager {
+  health: number;
+  grace: boolean;
+  graceTimeout?: ReturnType<typeof setTimeout>;
+  onDeath: () => void;
+
+  constructor(onDeath: () => void, initialHealth = 5) {
+    this.health = initialHealth;
+    this.grace = false;
+    this.onDeath = onDeath;
+  }
+
+  takeDamage(amount: number) {
+    if (this.grace) return;
+    this.health -= amount;
+    this.grace = true;
+    if (this.graceTimeout) clearTimeout(this.graceTimeout);
+    this.graceTimeout = setTimeout(() => {
+      this.grace = false;
+    }, 5000);
+    if (this.health <= 0) {
+      this.onDeath();
+      this.health = 5;
+    }
+  }
+
+  reset() {
+    this.health = 5;
+    this.grace = false;
+    if (this.graceTimeout) clearTimeout(this.graceTimeout);
+  }
+}
+
 export class Player extends Phaser.Physics.Arcade.Sprite {
   cursors: Phaser.Types.Input.Keyboard.CursorKeys;
   speed: number;
   jumpVelocity: number;
+  healthManager: PlayerHealthManager;
 
   constructor(scene: Phaser.Scene, x: number, y: number, scale: number) {
     super(scene, x, y, "ada", 0);
@@ -49,6 +83,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       scene.input.keyboard)!.createCursorKeys();
     this.speed = 300;
     this.jumpVelocity = -1000;
+    this.healthManager = new PlayerHealthManager(() => {
+      alert("You're dead");
+    });
     // Set up simple animation for ada (if multiple frames exist)
     scene.anims.create({
       key: "idle",
@@ -57,6 +94,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       repeat: -1,
     });
     this.play("idle");
+  }
+
+  get health() {
+    return this.healthManager.health;
+  }
+
+  takeDamage(amount: number) {
+    this.healthManager.takeDamage(amount);
   }
 
   update() {
