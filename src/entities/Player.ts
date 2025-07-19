@@ -72,6 +72,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   speed: number;
   jumpVelocity: number;
   healthManager: PlayerHealthManager;
+  blinkTimer?: ReturnType<typeof setInterval>;
 
   constructor(scene: Phaser.Scene, x: number, y: number, scale: number) {
     super(scene, x, y, "ada", 0);
@@ -101,11 +102,42 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   takeDamage(amount: number) {
+    if (this.healthManager.grace) return;
     this.healthManager.takeDamage(amount);
+    // Start blinking
+    if (this.blinkTimer) clearInterval(this.blinkTimer);
+    let visible = true;
+    this.blinkTimer = setInterval(() => {
+      visible = !visible;
+      this.setAlpha(visible ? 1 : 0.7);
+      // If grace is over, stop blinking
+      if (!this.healthManager.grace) {
+        clearInterval(this.blinkTimer!);
+        this.setAlpha(1);
+      }
+    }, 125); // 8 times per second
+    // Recoil movement: jump backwards and up
+    const recoilSpeed = 600;
+    const recoilJump = -450;
+    if (this.body) {
+      const direction = this.flipX ? -1 : 1; // flipX true = facing right, so go left
+      (this.body as Phaser.Physics.Arcade.Body).setVelocityX(
+        recoilSpeed * direction
+      );
+      (this.body as Phaser.Physics.Arcade.Body).setVelocityY(recoilJump);
+    }
   }
 
   update() {
     if (!this.body) return;
+    // If grace is over but alpha is not reset, ensure alpha is 1
+    if (!this.healthManager.grace && this.alpha !== 1) {
+      this.setAlpha(1);
+      if (this.blinkTimer) {
+        clearInterval(this.blinkTimer);
+        this.blinkTimer = undefined;
+      }
+    }
     const state: PlayerState = {
       velocity: {
         x: (this.body as Phaser.Physics.Arcade.Body).velocity.x,
